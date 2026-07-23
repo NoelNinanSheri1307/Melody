@@ -1,7 +1,6 @@
 const MoodSession = require('../models/MoodSession');
 const Song = require('../models/Song');
 const Groq = require("groq-sdk");
-const axios = require("axios");
 
 // @desc    Detect mood and recommend songs
 // @route   POST /api/mood/detect
@@ -45,7 +44,7 @@ const getMoodHistory = async (req, res) => {
         const sessions = await MoodSession.find({ user: req.user._id })
             .populate('songs')
             .sort({ createdAt: -1 });
-
+ 
         res.status(200).json(sessions);
     } catch (error) {
         console.error(error);
@@ -117,33 +116,16 @@ const aiAnalysis = async (req, res) => {
             .replace(/[^a-z]/g, "");
 
         if (!allowedMoods.includes(detectedMood)) {
-            throw new Error("Invalid mood");
+            throw new Error("Invalid mood classification returned by AI");
         }
 
     } 
     catch (error){
-        console.log("Groq failed, falling back to BERT:", error.message);
-        try {
-            const { text } = req.body;
-
-            const bertResponse = await axios.post(
-                "http://localhost:8002/predict",
-                { text }
-            );
-
-            detectedMood = bertResponse.data.emotion.toLowerCase();
-            modelVersion = "bert_fallback_v1";
-
-            if (!allowedMoods.includes(detectedMood)) {
-                return res.status(500).json({ message: "BERT returned invalid mood: " + detectedMood });
-            }
-
-        } 
-        catch (bertError){
-            console.error("BERT Error:", bertError.message || bertError);
-            console.error("BERT Error Code:", bertError.code);
-            return res.status(500).json({ message: "Both Groq and BERT failed", error: bertError.message || "Unknown BERT error" });
-        }
+        console.error("Groq AI Analysis failed:", error.message);
+        return res.status(500).json({ 
+            message: "AI Analysis failed", 
+            error: error.message 
+        });
     }
 
     try {
