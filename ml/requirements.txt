@@ -1,0 +1,15 @@
+opencv-python
+pandas
+scikit-learn
+numpy
+python-dotenv
+openai
+torch
+transformers
+fastapi
+uvicorn
+datasets
+accelerate
+deepface
+tensorflow==2.15
+tf-keras
