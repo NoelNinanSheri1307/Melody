@@ -12,10 +12,17 @@ function Dashboard() {
     const [error, setError] = useState("");
     const [showProfile, setShowProfile] = useState(false);
     const [detectedEmotion, setDetectedEmotion] = useState("");
-    const [detectionMode, setDetectionMode] = useState("manual"); // 'manual', 'text', 'camera'
+    const [detectionMode, setDetectionMode] = useState("manual"); // 'manual', 'text', 'camera', 'hybrid'
     const [userText, setUserText] = useState("");
+    const [explanation, setExplanation] = useState("");
+    const [confidence, setConfidence] = useState(null);
+    const [recExplanation, setRecExplanation] = useState("");
+    const [uploadedImage, setUploadedImage] = useState(null);
+    const [chatHistory, setChatHistory] = useState([]);
+    const [historyData, setHistoryData] = useState([]);
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
+    const streamRef = useRef(null);
     const [cameraActive, setCameraActive] = useState(false);
     const { user, logout } = useContext(AuthContext);
     const navigate = useNavigate();
@@ -50,13 +57,26 @@ function Dashboard() {
 
         try {
             const { data } = await api.post("/mood/ai-analysis", {
-                text: userText
+                text: userText,
+                history: chatHistory
             });
 
             setMood(data.mood);
             console.log("AI Analysis Result:", data.mood);
-            setSongs(data.recommendedSongs);
+            setSongs(data.recommendedSongs || data.songs || []);
             setDetectedEmotion(data.mood);
+            setExplanation(data.explanation || "");
+            setConfidence(data.confidence !== undefined ? data.confidence : null);
+            setRecExplanation(data.recommendationExplanation || "");
+
+            // Update chat context history with the user text and assistant classification
+            setChatHistory(prev => [
+                ...prev,
+                { role: "user", content: userText },
+                { role: "assistant", content: `Detected emotional state: ${data.mood}` }
+            ].slice(-6));
+            
+            setUserText("");
 
         }
         catch (err) {
@@ -69,27 +89,88 @@ function Dashboard() {
 
     const startCamera = async () => {
         try {
+            setError("");
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            videoRef.current.srcObject = stream;
+            streamRef.current = stream;
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+            }
             setCameraActive(true);
         } catch (error) {
             console.error("Camera error:", error);
+            setError("Webcam access was denied or is currently unavailable. Please verify device permissions.");
         }
     };
 
+    const stopCamera = () => {
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+        }
+        if (videoRef.current) {
+            videoRef.current.srcObject = null;
+        }
+        setCameraActive(false);
+    };
+
+    useEffect(() => {
+        if (detectionMode === "camera" || detectionMode === "hybrid") {
+            if (!uploadedImage) {
+                startCamera();
+            }
+        } else {
+            stopCamera();
+            setUploadedImage(null);
+        }
+        return () => {
+            stopCamera();
+        };
+    }, [detectionMode]);
+
+    const handleImageUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const validFormats = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+        if (!validFormats.includes(file.type)) {
+            setError("Unsupported file format. Please upload a PNG, JPG, JPEG, or WEBP image.");
+            return;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            setError("File size is too large. Please upload an image under 5MB.");
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            setUploadedImage(event.target.result);
+            stopCamera();
+            setError("");
+        };
+        reader.onerror = () => {
+            setError("Failed to read image file.");
+        };
+        reader.readAsDataURL(file);
+    };
+
     const captureAndDetect = async () => {
-        if (!videoRef.current) return;
+        let base64 = "";
 
-        const canvas = canvasRef.current;
-        const video = videoRef.current;
+        if (uploadedImage) {
+            base64 = uploadedImage;
+        } else {
+            if (!videoRef.current) return;
+            const canvas = canvasRef.current;
+            const video = videoRef.current;
 
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
 
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        const base64 = canvas.toDataURL("image/jpeg");
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            base64 = canvas.toDataURL("image/jpeg");
+        }
 
         try {
             setLoading(true);
@@ -102,10 +183,72 @@ function Dashboard() {
             setMood(data.mood);
             setDetectedEmotion(data.mood);
             setSongs(data.songs || data.recommendedSongs || []);
+            setExplanation(data.explanation || "");
+            setConfidence(data.confidence !== undefined ? data.confidence : null);
+            setRecExplanation(data.recommendationExplanation || "");
 
         } catch (err) {
             console.error(err);
-            setError("Biometric scan failed. Frequency unknown.");
+            setError("Biometric scan failed. No face detected or scanning timeout.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleHybridAnalysis = async () => {
+        let base64 = "";
+
+        if (uploadedImage) {
+            base64 = uploadedImage;
+        } else if (cameraActive && videoRef.current) {
+            const canvas = canvasRef.current;
+            const video = videoRef.current;
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            base64 = canvas.toDataURL("image/jpeg");
+        }
+
+        const hasText = !!userText.trim();
+        const hasImage = !!base64;
+
+        if (!hasText && !hasImage) {
+            setError("Please provide either chat text or scan/upload an image to analyze.");
+            return;
+        }
+
+        setLoading(true);
+        setError("");
+
+        try {
+            const { data } = await api.post("/mood/hybrid", {
+                text: userText,
+                image: base64 || null,
+                history: chatHistory
+            });
+
+            setMood(data.mood);
+            setDetectedEmotion(data.mood);
+            setSongs(data.songs || data.recommendedSongs || []);
+            setExplanation(data.explanation || "");
+            setConfidence(data.confidence !== undefined ? data.confidence : null);
+            setRecExplanation(data.recommendationExplanation || "");
+
+            if (hasText) {
+                setChatHistory(prev => [
+                    ...prev,
+                    { role: "user", content: userText },
+                    { role: "assistant", content: `Detected hybrid state: ${data.mood}` }
+                ].slice(-6));
+                setUserText("");
+            }
+
+        } catch (err) {
+            console.error(err);
+            setError(err.response?.data?.message || "Hybrid analysis failed.");
         } finally {
             setLoading(false);
         }
@@ -119,6 +262,106 @@ function Dashboard() {
     useEffect(() => {
         if (!user) navigate("/login");
     }, [user, navigate]);
+
+    useEffect(() => {
+        const loadHistory = async () => {
+            try {
+                const { data } = await api.get("/mood/history");
+                setHistoryData(data);
+            } catch (err) {
+                console.error("Failed to load history for dashboard insights:", err);
+            }
+        };
+        if (user) {
+            loadHistory();
+        }
+    }, [user]);
+
+    const getDashboardInsights = () => {
+        if (!historyData || historyData.length === 0) {
+            return {
+                peakMood: "None",
+                peakPercentage: 0,
+                peakText: "No sessions recorded yet. Scan or Select your mood above!",
+                insight1Title: "Subconscious Mapping",
+                insight1Text: "Complete text or scan sessions to map your frequency spectrum.",
+                insight2Title: "Frequency Shift",
+                insight2Text: "Record your emotional state daily to build a streak."
+            };
+        }
+
+        const moodCounts = {};
+        historyData.forEach(s => {
+            const m = s.mood || "neutral";
+            moodCounts[m] = (moodCounts[m] || 0) + 1;
+        });
+        let peakMood = "neutral";
+        let maxCount = 0;
+        Object.entries(moodCounts).forEach(([m, count]) => {
+            if (count > maxCount) {
+                maxCount = count;
+                peakMood = m;
+            }
+        });
+        const peakPercentage = Math.round((maxCount / historyData.length) * 100);
+        const capitalizedMood = peakMood.charAt(0).toUpperCase() + peakMood.slice(1);
+        const peakText = `Your emotional peak is "${capitalizedMood}" (dominates ${peakPercentage}% of sessions).`;
+
+        const uniqueMoods = new Set(historyData.map(s => s.mood.toLowerCase()));
+        const diversityCount = uniqueMoods.size;
+        const insight1Text = `You have explored ${diversityCount} different emotional frequencies in your timeline.`;
+
+        const uniqueDays = Array.from(new Set(historyData.map(s => {
+            const d = new Date(s.createdAt);
+            return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        }))).map(dStr => {
+            const parts = dStr.split('-');
+            const d = new Date(parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2]));
+            d.setHours(0,0,0,0);
+            return d;
+        });
+
+        uniqueDays.sort((a,b) => b.getTime() - a.getTime());
+
+        let streak = 0;
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+
+        const hasSessionToday = uniqueDays.some(d => d.getTime() === today.getTime());
+        const hasSessionYesterday = uniqueDays.some(d => d.getTime() === yesterday.getTime());
+
+        if (hasSessionToday || hasSessionYesterday) {
+            let checkDate = hasSessionToday ? today : yesterday;
+            while (true) {
+                const hasSession = uniqueDays.some(d => d.getTime() === checkDate.getTime());
+                if (hasSession) {
+                    streak++;
+                    checkDate = new Date(checkDate);
+                    checkDate.setDate(checkDate.getDate() - 1);
+                } else {
+                    break;
+                }
+            }
+        }
+
+        const insight2Text = streak > 1 
+            ? `Fantastic! You are currently on a ${streak}-day emotional tracking streak.`
+            : "Record your emotional state daily to build a tracking streak.";
+
+        return {
+            peakMood: capitalizedMood,
+            peakPercentage,
+            peakText,
+            insight1Title: "Subconscious Mapping",
+            insight1Text,
+            insight2Title: "Frequency Shift",
+            insight2Text
+        };
+    };
+
+    const insights = getDashboardInsights();
 
     return (
         <div className="min-h-screen text-white p-8">
@@ -211,6 +454,15 @@ function Dashboard() {
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                                         </svg>
                                     )
+                                },
+                                {
+                                    id: "hybrid",
+                                    label: "Hybrid Scan",
+                                    icon: (
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a6 6 0 00-6-6M2 13a6 6 0 006 6" />
+                                        </svg>
+                                    )
                                 }
                             ].map((mode) => (
                                 <button
@@ -288,32 +540,160 @@ function Dashboard() {
                                     Our OpenCV module analyzes facial expressions to detect emotional state.
                                 </p>
 
-                                <div className="aspect-video w-full bg-black rounded-3xl overflow-hidden flex items-center justify-center relative">
-                                    {!cameraActive && (
-                                        <button
-                                            onClick={startCamera}
-                                            className="px-8 py-4 bg-cyan-400 text-black rounded-full font-bold hover:scale-105 transition"
-                                        >
-                                            Start Camera
-                                        </button>
-                                    )}
+                                <div className="aspect-video w-full bg-black rounded-3xl overflow-hidden flex items-center justify-center relative border border-white/5 shadow-2xl">
+                                    {uploadedImage ? (
+                                        <div className="relative w-full h-full">
+                                            <img
+                                                src={uploadedImage}
+                                                alt="Uploaded preview"
+                                                className="w-full h-full object-cover"
+                                            />
+                                            <button
+                                                onClick={() => {
+                                                    setUploadedImage(null);
+                                                    startCamera();
+                                                }}
+                                                className="absolute top-4 right-4 bg-red-500/80 text-white font-bold p-3 w-10 h-10 flex items-center justify-center rounded-full hover:bg-red-600 transition shadow"
+                                                title="Remove Image"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {!cameraActive && (
+                                                <button
+                                                    onClick={startCamera}
+                                                    className="px-8 py-4 bg-cyan-400 text-black rounded-full font-bold hover:scale-105 transition"
+                                                >
+                                                    Start Camera
+                                                </button>
+                                            )}
 
-                                    <video
-                                        ref={videoRef}
-                                        autoPlay
-                                        className={`w-full h-full object-cover ${cameraActive ? "block" : "hidden"}`}
-                                    />
-                                    <canvas ref={canvasRef} className="hidden" />
+                                            <video
+                                                ref={videoRef}
+                                                autoPlay
+                                                className={`w-full h-full object-cover ${cameraActive ? "block" : "hidden"}`}
+                                            />
+                                            <canvas ref={canvasRef} className="hidden" />
+                                        </>
+                                    )}
                                 </div>
 
-                                <div className="mt-6 flex gap-4">
-
+                                <div className="mt-6 flex gap-4 items-center">
                                     <button
                                         onClick={captureAndDetect}
-                                        disabled={!cameraActive || loading}
-                                        className="px-10 py-3 bg-cyan-400 text-black rounded-full font-bold disabled:opacity-50"
+                                        disabled={(!cameraActive && !uploadedImage) || loading}
+                                        className="px-10 py-3 bg-cyan-400 text-black rounded-full font-bold disabled:opacity-50 hover:shadow-[0_0_20px_rgba(34,211,238,0.4)] transition"
                                     >
                                         {loading ? "Analyzing..." : "Scan Emotion"}
+                                    </button>
+
+                                    <label className="px-6 py-3 bg-white/10 text-white rounded-full font-bold cursor-pointer hover:bg-white/20 transition flex items-center gap-2 text-sm">
+                                        <svg className="w-4 h-4 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                        </svg>
+                                        <span>Upload File</span>
+                                        <input
+                                            type="file"
+                                            accept="image/png, image/jpeg, image/jpg, image/webp"
+                                            className="hidden"
+                                            onChange={handleImageUpload}
+                                            disabled={loading}
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+                        )}
+                        {detectionMode === "hybrid" && (
+                            <div className="animate-in fade-in slide-in-from-left-5 duration-500 space-y-8">
+                                <div>
+                                    <h2 className="text-4xl font-bold mb-4 cursive text-white/90">
+                                        Hybrid Emotional Fusion
+                                    </h2>
+                                    <p className="text-gray-400 max-w-xl">
+                                        Fuses webcam biometric expressions and conversational chat markers for advanced multidimensional mapping.
+                                    </p>
+                                </div>
+
+                                <div className="grid md:grid-cols-2 gap-8">
+                                    {/* Left: Biometrics */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-xs uppercase tracking-wider text-cyan-400 font-bold font-mono">Biometric Input</h3>
+                                        <div className="aspect-video bg-black rounded-3xl overflow-hidden flex items-center justify-center relative border border-white/5 shadow-2xl">
+                                            {uploadedImage ? (
+                                                <div className="relative w-full h-full">
+                                                    <img
+                                                        src={uploadedImage}
+                                                        alt="Uploaded preview"
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                    <button
+                                                        onClick={() => {
+                                                            setUploadedImage(null);
+                                                            startCamera();
+                                                        }}
+                                                        className="absolute top-4 right-4 bg-red-500/80 text-white font-bold p-3 w-10 h-10 flex items-center justify-center rounded-full hover:bg-red-600 transition shadow"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    {!cameraActive && (
+                                                        <button
+                                                            onClick={startCamera}
+                                                            className="px-6 py-3 bg-cyan-400 text-black rounded-full font-bold hover:scale-105 transition text-sm"
+                                                        >
+                                                            Start Webcam
+                                                        </button>
+                                                    )}
+
+                                                    <video
+                                                        ref={videoRef}
+                                                        autoPlay
+                                                        className={`w-full h-full object-cover ${cameraActive ? "block" : "hidden"}`}
+                                                    />
+                                                    <canvas ref={canvasRef} className="hidden" />
+                                                </>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-4">
+                                            <label className="flex-1 py-3 bg-white/5 border border-white/10 hover:bg-white/10 hover:border-cyan-400/30 text-white rounded-2xl font-bold cursor-pointer transition flex items-center justify-center gap-2 text-xs uppercase tracking-wider">
+                                                <svg className="w-4 h-4 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                                </svg>
+                                                <span>Upload Photo</span>
+                                                <input
+                                                    type="file"
+                                                    accept="image/png, image/jpeg, image/jpg, image/webp"
+                                                    className="hidden"
+                                                    onChange={handleImageUpload}
+                                                    disabled={loading}
+                                                />
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    {/* Right: Conversational Context */}
+                                    <div className="space-y-4 flex flex-col">
+                                        <h3 className="text-xs uppercase tracking-wider text-cyan-400 font-bold font-mono">Conversational Input</h3>
+                                        <textarea
+                                            value={userText}
+                                            onChange={(e) => setUserText(e.target.value)}
+                                            placeholder="Write about your current thoughts or environment... e.g. Trying to focus but feeling a bit scattered..."
+                                            className="flex-1 bg-white/5 border-2 border-white/10 rounded-3xl p-6 text-white text-base placeholder-gray-600 focus:border-cyan-400 focus:outline-none transition-all h-full min-h-[150px]"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="pt-4">
+                                    <button
+                                        onClick={handleHybridAnalysis}
+                                        disabled={loading}
+                                        className="bg-cyan-400 text-black px-12 py-4 rounded-full font-bold transition-all duration-500 hover:shadow-[0_0_30px_rgba(34,211,238,0.6)] disabled:opacity-50 text-base"
+                                    >
+                                        {loading ? "Fusing Modalities & Deciphering Frequencies..." : "Analyze Hybrid Frequencies"}
                                     </button>
                                 </div>
                             </div>
@@ -332,21 +712,40 @@ function Dashboard() {
                         )}
 
                         {detectedEmotion && (
-                            <motion.div
-                                initial={{ opacity: 0, scale: 0.8, y: 20 }}
-                                animate={{ opacity: 1, scale: 1, y: 0 }}
-                                exit={{ opacity: 0, scale: 0.8 }}
-                                className="mb-12 text-center"
-                            >
-                                <span className="px-8 py-4 bg-cyan-400 text-black font-bold rounded-full text-base uppercase tracking-[0.2em] shadow-[0_0_30px_rgba(34,211,238,0.6)] inline-block">
-                                    Detected Emotion: {detectedEmotion}
-                                </span>
-                            </motion.div>
-                        )}
+                             <motion.div
+                                 initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                                 animate={{ opacity: 1, scale: 1, y: 0 }}
+                                 exit={{ opacity: 0, scale: 0.8 }}
+                                 className="mb-12 text-center space-y-4"
+                             >
+                                 <div className="inline-flex flex-col sm:flex-row items-center justify-center gap-4">
+                                     <span className="px-8 py-4 bg-cyan-400 text-black font-bold rounded-full text-base uppercase tracking-[0.2em] shadow-[0_0_30px_rgba(34,211,238,0.6)]">
+                                         Detected Emotion: {detectedEmotion}
+                                     </span>
+                                     {confidence !== null && (
+                                         <span className="px-4 py-2 bg-white/10 text-cyan-400 font-mono font-bold text-xs uppercase tracking-widest rounded-full border border-cyan-400/20">
+                                             {Math.round(confidence * 100)}% match
+                                         </span>
+                                     )}
+                                 </div>
+                                 {explanation && (
+                                     <p className="text-gray-400 text-sm italic max-w-lg mx-auto font-light leading-relaxed">
+                                         Analysis insight: {explanation}
+                                     </p>
+                                 )}
+                             </motion.div>
+                         )}
                     </AnimatePresence>
                     {songs.length > 0 && (
-                        <section className="animate-in fade-in slide-in-from-bottom-5 duration-700">
-                            <h3 className="text-2xl font-bold mb-6 text-cyan-400 uppercase tracking-widest text-sm">Synchronized Library</h3>
+                        <section className="animate-in fade-in slide-in-from-bottom-5 duration-700 space-y-6">
+                            <div>
+                                <h3 className="text-2xl font-bold text-cyan-400 uppercase tracking-widest text-sm">Synchronized Library</h3>
+                                {recExplanation && (
+                                    <p className="text-xs text-gray-400 mt-2 max-w-xl italic leading-relaxed border-l border-cyan-400/30 pl-3">
+                                        {recExplanation}
+                                    </p>
+                                )}
+                            </div>
                             <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
                                 {songs.map((song, index) => (
                                     <div key={song.title + song.artist + index} className="bg-white/5 p-5 rounded-3xl border border-white/5 hover:border-cyan-400/30 transition-all group flex gap-4 items-center">
@@ -399,15 +798,19 @@ function Dashboard() {
                     )}
                 </div>
 
-                {/* Sidebar suggestions / Insights */}
                 <div className="space-y-8">
                     <div className="bg-cyan-900/10 border border-cyan-400/10 p-8 rounded-[2.5rem]">
                         <h4 className="text-cyan-400 text-xs font-bold uppercase tracking-widest mb-6 border-b border-cyan-400/10 pb-4">Mood Trend</h4>
                         <div className="space-y-4">
                             <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                                <div className="h-full bg-cyan-400 w-3/4 rounded-full"></div>
+                                <div 
+                                    className="h-full bg-cyan-400 rounded-full transition-all duration-1000"
+                                    style={{ width: `${insights.peakPercentage}%` }}
+                                ></div>
                             </div>
-                            <p className="text-xs text-gray-500 italic text-center">Your emotional peak was "Happy" earlier today.</p>
+                            <p className="text-xs text-gray-400 italic text-center leading-relaxed">
+                                {insights.peakText}
+                            </p>
                         </div>
                     </div>
 
@@ -415,17 +818,17 @@ function Dashboard() {
                         <h4 className="text-white text-xs font-bold uppercase tracking-widest mb-6">Quick Insights</h4>
                         <ul className="space-y-6">
                             <li className="flex gap-4">
-                                <div className="w-10 h-10 rounded-2xl bg-cyan-400/10 flex items-center justify-center text-cyan-400">𝄞</div>
+                                <div className="w-10 h-10 rounded-2xl bg-cyan-400/10 flex items-center justify-center text-cyan-400 font-bold">𝄞</div>
                                 <div>
-                                    <p className="text-sm font-bold">Subconscious Mapping</p>
-                                    <p className="text-xs text-gray-500">ML determined you respond best to Lofi-Beats at night.</p>
+                                    <p className="text-sm font-bold">{insights.insight1Title}</p>
+                                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">{insights.insight1Text}</p>
                                 </div>
                             </li>
                             <li className="flex gap-4">
-                                <div className="w-10 h-10 rounded-2xl bg-cyan-400/10 flex items-center justify-center text-cyan-400">♫</div>
+                                <div className="w-10 h-10 rounded-2xl bg-cyan-400/10 flex items-center justify-center text-cyan-400 font-bold">♫</div>
                                 <div>
-                                    <p className="text-sm font-bold">Frequency Shift</p>
-                                    <p className="text-xs text-gray-500">Current listening trend: Lowering Cortisol.</p>
+                                    <p className="text-sm font-bold">{insights.insight2Title}</p>
+                                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">{insights.insight2Text}</p>
                                 </div>
                             </li>
                         </ul>

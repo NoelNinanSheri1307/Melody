@@ -71,7 +71,8 @@ const getRecommendations = async (emotion) => {
                 duration: track.trackTimeMillis ? Math.floor(track.trackTimeMillis / 1000) : 0,
                 artistImage: cover100,
                 albumImage: cover500,
-                ranking: track.trackId || 0
+                ranking: track.trackId || 0,
+                genre: track.primaryGenreName || ""
             };
         });
         
@@ -95,6 +96,25 @@ const getRecommendations = async (emotion) => {
     }
 };
 
+const getRecommendationExplanation = (mood) => {
+    const explanations = {
+        happy: "These tracks focus on vibrant rhythms and uplifting melodies to amplify your happy vibe.",
+        sad: "These songs offer soft acoustic sounds and comforting lyrics to soothe a sad or reflective state.",
+        angry: "These heavy beats and raw energetic chords provide a healthy release for intense emotions.",
+        calm: "These selections highlight gentle acoustic strums and mellow notes to foster a peaceful space.",
+        energetic: "These fast-tempo beats and powerful synth progressions are chosen to feed your active momentum.",
+        neutral: "These balanced acoustic rhythms and popular songs fit a relaxed, neutral presence.",
+        stressed: "These calming ambient frequencies and quiet sounds aim to slow down thoughts and ease stress.",
+        excited: "These dance-ready pop hooks and high-energy anthems celebrate your excited mood.",
+        lonely: "These warm acoustic tracks and empathetic vocals are here to keep you company and bring comfort.",
+        relaxed: "These smooth jazz harmonies and gentle beats help you ease into a deep state of relaxation.",
+        romantic: "These warm, melodic r&b and pop love songs harmonize with your romantic frequency.",
+        focus: "These instrumental lo-fi sounds and piano chords help block out distractions for deep focus."
+    };
+    return explanations[mood.toLowerCase()] || explanations.neutral;
+};
+
 module.exports = {
-    getRecommendations
+    getRecommendations,
+    getRecommendationExplanation
 };

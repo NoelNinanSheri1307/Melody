@@ -27,16 +27,16 @@ const detectEmotionFromML = async (imageBase64) => {
     )
 
     const rawEmotion = response.data.emotion
-
+    const confidence = response.data.confidence !== undefined ? response.data.confidence : 0.8
     const mappedEmotion = mapEmotion(rawEmotion)
 
-    return mappedEmotion
+    return { mood: mappedEmotion, confidence }
 
   } catch (error) {
 
     console.error("ML Service Error:", error.message)
 
-    return "neutral"
+    return { mood: "neutral", confidence: 0.5 }
 
   }
 

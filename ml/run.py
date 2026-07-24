@@ -13,10 +13,14 @@ def detect_emotion():
     if not image:
         return jsonify({"error": "Image required"}), 400
 
-    emotion = detect_emotion_from_base64(image)
+    res = detect_emotion_from_base64(image)
 
+    if isinstance(res, dict):
+        return jsonify(res)
+        
     return jsonify({
-        "emotion": emotion
+        "emotion": res,
+        "confidence": 0.5
     })
 
 

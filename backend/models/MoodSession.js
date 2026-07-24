@@ -10,7 +10,8 @@ const songMetadataSchema = new mongoose.Schema({
     duration: { type: Number, default: 0 },
     artistImage: { type: String, default: '' },
     albumImage: { type: String, default: '' },
-    ranking: { type: Number, default: 0 }
+    ranking: { type: Number, default: 0 },
+    genre: { type: String, default: '' }
 });
 
 const moodSessionSchema = new mongoose.Schema({
@@ -27,6 +28,18 @@ const moodSessionSchema = new mongoose.Schema({
         enum: ["happy","sad","angry","calm","energetic","neutral","stressed","excited","lonely","relaxed","romantic","focus"]
     },
     songs: [songMetadataSchema],
+    confidence: {
+        type: Number,
+        default: 1.0,
+    },
+    explanation: {
+        type: String,
+        default: '',
+    },
+    recommendationExplanation: {
+        type: String,
+        default: '',
+    },
     modelVersion: {
         type: String,
         default: 'mock_v1',
