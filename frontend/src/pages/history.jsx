@@ -7,6 +7,7 @@ import { AuthContext } from "../context/AuthContext";
 function History() {
     const { user } = useContext(AuthContext);
     const [sessions, setSessions] = useState([]);
+    const [likedSongs, setLikedSongs] = useState([]);
     const [analytics, setAnalytics] = useState({
         totalSessions: 0,
         mostFrequentMood: "None",
@@ -46,12 +47,14 @@ function History() {
     useEffect(() => {
         const fetchHistoryAndInsights = async () => {
             try {
-                const [historyRes, insightsRes] = await Promise.all([
+                const [historyRes, insightsRes, likedRes] = await Promise.all([
                     api.get("/mood/history"),
-                    api.get("/mood/insights")
+                    api.get("/mood/insights"),
+                    api.get("/mood/liked")
                 ]);
                 setSessions(historyRes.data);
                 setAnalytics(insightsRes.data);
+                setLikedSongs(likedRes.data);
             } catch (error) {
                 console.error("Failed to load timeline and insights:", error);
             } finally {
@@ -112,6 +115,30 @@ function History() {
         if (version.includes("groq_llama")) return "Chat";
         if (version.includes("hybrid")) return "Hybrid";
         return "Manual";
+    };
+
+    const handleLikeToggle = async (song) => {
+        try {
+            const { data } = await api.post("/mood/like", {
+                title: song.title,
+                artist: song.artist,
+                album: song.album,
+                coverImage: song.coverImage,
+                previewUrl: song.previewUrl,
+                deezerUrl: song.deezerUrl,
+                duration: song.duration,
+                genre: song.genre || "",
+                ranking: song.ranking || 0
+            });
+            
+            if (data.liked) {
+                setLikedSongs(prev => [...prev, data.song || song]);
+            } else {
+                setLikedSongs(prev => prev.filter(s => !(s.title === song.title && s.artist === song.artist)));
+            }
+        } catch (err) {
+            console.error("Failed to toggle song like:", err);
+        }
     };
 
     // Filter Logic
@@ -291,7 +318,7 @@ function History() {
                     </div>
                     <button
                         onClick={() => navigate("/dashboard")}
-                        className="px-6 py-2 rounded-full border border-cyan-400/30 text-cyan-400 hover:bg-cyan-400 hover:text-black transition-all duration-500 font-bold cyan-aura text-sm"
+                        className="px-6 py-2 rounded-full border border-cyan-400/30 text-cyan-400 hover:bg-cyan-400 hover:text-black transition-all duration-500 font-bold cyan-aura text-sm shrink-0"
                     >
                         ← Dashboard
                     </button>
@@ -407,6 +434,78 @@ function History() {
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Liked Songs Panel */}
+            <div className="bg-[#0d1220]/60 border border-white/10 p-8 rounded-[2.5rem] space-y-6">
+                <h2 className="text-lg font-bold text-white tracking-widest uppercase flex items-center gap-2">
+                    <svg className="w-5 h-5 text-red-500 fill-current" viewBox="0 0 24 24">
+                        <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                    Bookmarked Frequencies ({likedSongs.length})
+                </h2>
+                {likedSongs.length === 0 ? (
+                    <p className="text-xs text-gray-500 italic py-6">Your bookmarked collection is empty. Heart songs on the dashboard to build your list.</p>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {likedSongs.map((song, songIdx) => (
+                            <div
+                                key={song.title + song.artist + songIdx}
+                                className="bg-black/40 p-5 rounded-2xl border border-white/5 hover:border-cyan-400/20 transition-all flex flex-col justify-between"
+                            >
+                                <div className="flex gap-4 items-center mb-3">
+                                    {song.coverImage && (
+                                        <img 
+                                            src={song.coverImage} 
+                                            alt={song.album} 
+                                            className="w-12 h-12 rounded-lg object-cover shrink-0"
+                                        />
+                                    )}
+                                    <div className="min-w-0 flex-1">
+                                        <h3 className="font-bold text-sm mb-0.5 truncate text-white" title={song.title}>{song.title}</h3>
+                                        <p className="text-xs text-cyan-400 truncate">{song.artist}</p>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <p className="text-[10px] text-gray-500 truncate">Album: {song.album}</p>
+                                    <div className="flex gap-3 mt-1 items-center justify-between">
+                                        <div className="flex gap-3">
+                                            {song.previewUrl && (
+                                                <a 
+                                                    href={song.previewUrl} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer" 
+                                                    className="text-[10px] bg-white/10 hover:bg-cyan-400 hover:text-black text-white px-2.5 py-1 rounded-full transition-colors"
+                                                >
+                                                    Preview
+                                                </a>
+                                            )}
+                                            {song.deezerUrl && (
+                                                <a 
+                                                    href={song.deezerUrl} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer" 
+                                                    className="text-[10px] bg-cyan-400 text-black font-bold px-3 py-1 rounded-full hover:bg-white hover:text-black transition-colors"
+                                                >
+                                                    Apple Music
+                                                </a>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={() => handleLikeToggle(song)}
+                                            className="text-red-500 hover:text-gray-400 transition-colors p-1"
+                                            title="Remove Like"
+                                        >
+                                            <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                                                <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Search & Filters */}
@@ -587,27 +686,49 @@ function History() {
                                                                 </div>
                                                                 <div className="flex flex-col gap-2">
                                                                     <p className="text-[10px] text-gray-500 truncate">Album: {song.album}</p>
-                                                                    <div className="flex gap-3 mt-1">
-                                                                        {song.previewUrl && (
-                                                                            <a 
-                                                                                href={song.previewUrl} 
-                                                                                target="_blank" 
-                                                                                rel="noopener noreferrer" 
-                                                                                className="text-[10px] bg-white/10 hover:bg-cyan-400 hover:text-black text-white px-2.5 py-1 rounded-full transition-colors"
-                                                                            >
-                                                                                Preview
-                                                                            </a>
-                                                                        )}
-                                                                        {song.deezerUrl && (
-                                                                            <a 
-                                                                                href={song.deezerUrl} 
-                                                                                target="_blank" 
-                                                                                rel="noopener noreferrer" 
-                                                                                className="text-[10px] bg-cyan-400 text-black font-bold px-3 py-1 rounded-full hover:bg-white hover:text-black transition-colors"
-                                                                            >
-                                                                                Apple Music
-                                                                            </a>
-                                                                        )}
+                                                                    <div className="flex gap-3 mt-1 items-center justify-between">
+                                                                        <div className="flex gap-3">
+                                                                            {song.previewUrl && (
+                                                                                <a 
+                                                                                    href={song.previewUrl} 
+                                                                                    target="_blank" 
+                                                                                    rel="noopener noreferrer" 
+                                                                                    className="text-[10px] bg-white/10 hover:bg-cyan-400 hover:text-black text-white px-2.5 py-1 rounded-full transition-colors"
+                                                                                >
+                                                                                    Preview
+                                                                                </a>
+                                                                            )}
+                                                                            {song.deezerUrl && (
+                                                                                <a 
+                                                                                    href={song.deezerUrl} 
+                                                                                    target="_blank" 
+                                                                                    rel="noopener noreferrer" 
+                                                                                    className="text-[10px] bg-cyan-400 text-black font-bold px-3 py-1 rounded-full hover:bg-white hover:text-black transition-colors"
+                                                                                >
+                                                                                    Apple Music
+                                                                                </a>
+                                                                            )}
+                                                                        </div>
+                                                                        {(() => {
+                                                                            const isLiked = likedSongs.some(s => s.title === song.title && s.artist === song.artist);
+                                                                            return (
+                                                                                <button
+                                                                                    onClick={() => handleLikeToggle(song)}
+                                                                                    className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                                                                    title={isLiked ? "Unlike song" : "Like song"}
+                                                                                >
+                                                                                    <svg 
+                                                                                        className="w-4 h-4" 
+                                                                                        fill={isLiked ? "currentColor" : "none"} 
+                                                                                        viewBox="0 0 24 24" 
+                                                                                        stroke="currentColor"
+                                                                                        style={{ color: isLiked ? "#ef4444" : "currentColor" }}
+                                                                                    >
+                                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                                                                    </svg>
+                                                                                </button>
+                                                                            );
+                                                                        })()}
                                                                     </div>
                                                                 </div>
                                                             </div>

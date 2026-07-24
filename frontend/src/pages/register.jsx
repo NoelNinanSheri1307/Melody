@@ -112,6 +112,15 @@ export default function Register() {
                             Sign In
                         </span>
                     </p>
+
+                    <div className="mt-8 text-center border-t border-white/5 pt-6">
+                        <span
+                            onClick={() => navigate("/")}
+                            className="text-xs text-gray-500 cursor-pointer hover:text-[#00ff88] transition-colors"
+                        >
+                            ← Back to Main Page
+                        </span>
+                    </div>
                 </form>
             </div>
 

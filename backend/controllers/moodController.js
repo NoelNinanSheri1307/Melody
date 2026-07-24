@@ -1,4 +1,5 @@
 const MoodSession = require('../models/MoodSession');
+const LikedSong = require('../models/LikedSong');
 const { getRecommendations, getRecommendationExplanation } = require('../services/recommendationService');
 const Groq = require("groq-sdk");
 
@@ -542,6 +543,54 @@ const getMoodInsights = async (req, res) => {
     }
 };
 
+const toggleLikeSong = async (req, res) => {
+    try {
+        const { title, artist, album, coverImage, previewUrl, deezerUrl, duration, genre, ranking } = req.body;
+
+        if (!title || !artist) {
+            return res.status(400).json({ message: "Song title and artist are required." });
+        }
+
+        const existingLike = await LikedSong.findOne({
+            user: req.user._id,
+            title,
+            artist
+        });
+
+        if (existingLike) {
+            await LikedSong.findByIdAndDelete(existingLike._id);
+            return res.json({ liked: false, message: "Removed song from liked collection." });
+        }
+
+        const newLike = await LikedSong.create({
+            user: req.user._id,
+            title,
+            artist,
+            album: album || "Single",
+            coverImage: coverImage || "",
+            previewUrl: previewUrl || "",
+            deezerUrl: deezerUrl || "",
+            duration: duration || 0,
+            genre: genre || "Pop",
+            ranking: ranking || 0
+        });
+
+        return res.status(201).json({ liked: true, song: newLike, message: "Bookmarked song to liked collection." });
+    } catch (error) {
+        console.error("Like toggle failed:", error.message);
+        res.status(500).json({ message: "Failed to toggle liked song status." });
+    }
+};
+
+const getLikedSongs = async (req, res) => {
+    try {
+        const likedSongs = await LikedSong.find({ user: req.user._id }).sort({ createdAt: -1 });
+        res.json(likedSongs);
+    } catch (error) {
+        console.error("Fetch liked songs failed:", error.message);
+        res.status(500).json({ message: "Failed to retrieve liked songs list." });
+    }
+};
 
 module.exports = {
     detectMood,
@@ -551,4 +600,6 @@ module.exports = {
     aiAnalysis,
     hybridAnalysis,
     getMoodInsights,
+    toggleLikeSong,
+    getLikedSongs,
 };

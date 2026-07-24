@@ -20,6 +20,7 @@ function Dashboard() {
     const [uploadedImage, setUploadedImage] = useState(null);
     const [chatHistory, setChatHistory] = useState([]);
     const [historyData, setHistoryData] = useState([]);
+    const [likedSongs, setLikedSongs] = useState([]);
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
     const streamRef = useRef(null);
@@ -264,18 +265,46 @@ function Dashboard() {
     }, [user, navigate]);
 
     useEffect(() => {
-        const loadHistory = async () => {
+        const loadHistoryAndLikes = async () => {
             try {
-                const { data } = await api.get("/mood/history");
-                setHistoryData(data);
+                const [historyRes, likedRes] = await Promise.all([
+                    api.get("/mood/history"),
+                    api.get("/mood/liked")
+                ]);
+                setHistoryData(historyRes.data);
+                setLikedSongs(likedRes.data);
             } catch (err) {
-                console.error("Failed to load history for dashboard insights:", err);
+                console.error("Failed to load history and likes for dashboard insights:", err);
             }
         };
         if (user) {
-            loadHistory();
+            loadHistoryAndLikes();
         }
     }, [user]);
+
+    const handleLikeToggle = async (song) => {
+        try {
+            const { data } = await api.post("/mood/like", {
+                title: song.title,
+                artist: song.artist,
+                album: song.album,
+                coverImage: song.coverImage,
+                previewUrl: song.previewUrl,
+                deezerUrl: song.deezerUrl,
+                duration: song.duration,
+                genre: song.genre || "",
+                ranking: song.ranking || 0
+            });
+            
+            if (data.liked) {
+                setLikedSongs(prev => [...prev, data.song || song]);
+            } else {
+                setLikedSongs(prev => prev.filter(s => !(s.title === song.title && s.artist === song.artist)));
+            }
+        } catch (err) {
+            console.error("Failed to toggle song like:", err);
+        }
+    };
 
     const getDashboardInsights = () => {
         if (!historyData || historyData.length === 0) {
@@ -420,10 +449,10 @@ function Dashboard() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+            <div className="space-y-12">
 
                 {/* Main Interaction Area */}
-                <div className="lg:col-span-2 space-y-12">
+                <div className="space-y-12">
                     <section>
                         <div className="flex gap-8 mb-12 border-b border-white/5 pb-2">
                             {[
@@ -789,6 +818,26 @@ function Dashboard() {
                                                         View in Apple Music
                                                     </a>
                                                 )}
+                                                {(() => {
+                                                    const isLiked = likedSongs.some(s => s.title === song.title && s.artist === song.artist);
+                                                    return (
+                                                        <button
+                                                            onClick={() => handleLikeToggle(song)}
+                                                            className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                                            title={isLiked ? "Unlike song" : "Like song"}
+                                                        >
+                                                            <svg 
+                                                                className="w-4 h-4" 
+                                                                fill={isLiked ? "currentColor" : "none"} 
+                                                                viewBox="0 0 24 24" 
+                                                                stroke="currentColor"
+                                                                style={{ color: isLiked ? "#ef4444" : "currentColor" }}
+                                                            >
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                                            </svg>
+                                                        </button>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                     </div>
@@ -798,7 +847,7 @@ function Dashboard() {
                     )}
                 </div>
 
-                <div className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-white/10 pt-12">
                     <div className="bg-cyan-900/10 border border-cyan-400/10 p-8 rounded-[2.5rem]">
                         <h4 className="text-cyan-400 text-xs font-bold uppercase tracking-widest mb-6 border-b border-cyan-400/10 pb-4">Mood Trend</h4>
                         <div className="space-y-4">
@@ -834,8 +883,8 @@ function Dashboard() {
                         </ul>
                     </div>
                 </div>
-            </div>
         </div>
+    </div>
     );
 }
 
