@@ -28,6 +28,9 @@ def detect_emotion_from_base64(image_base64):
             enforce_detection=False
         )
 
+        if not result or result[0].get("face_confidence", 0) < 0.2:
+            return "neutral"
+
         emotion = result[0]["dominant_emotion"]
 
         return emotion

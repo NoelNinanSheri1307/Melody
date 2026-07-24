@@ -45,26 +45,26 @@ function Dashboard() {
     const handleTextAnalysis = async () => {
         if (!userText.trim()) return;
 
-            setLoading(true);
-            setError("");
+        setLoading(true);
+        setError("");
 
-            try {
-                const { data } = await api.post("/mood/ai-analysis", {
-                    text: userText
-                });
+        try {
+            const { data } = await api.post("/mood/ai-analysis", {
+                text: userText
+            });
 
-                setMood(data.mood);
-                console.log("AI Analysis Result:", data.mood);
-                setSongs(data.recommendedSongs);
-                setDetectedEmotion(data.mood);
+            setMood(data.mood);
+            console.log("AI Analysis Result:", data.mood);
+            setSongs(data.recommendedSongs);
+            setDetectedEmotion(data.mood);
 
-            }
-            catch (err) {
-                setError(err.response?.data?.message || "Something went wrong");
-            } 
-            finally{
-                setLoading(false);
-            }
+        }
+        catch (err) {
+            setError(err.response?.data?.message || "Something went wrong");
+        }
+        finally {
+            setLoading(false);
+        }
     };
 
     const startCamera = async () => {
@@ -236,7 +236,7 @@ function Dashboard() {
                                 <h2 className="text-4xl font-bold mb-4 cursive text-white/90">How are you feeling right now?</h2>
                                 <p className="text-gray-400 mb-8 max-w-xl">Select your current frequency to synchronize with our library.</p>
                                 <div className="flex gap-4 flex-wrap mb-8">
-                                    {["happy", "calm", "angry", "sad", "energetic", "neutral"].map((m) => (
+                                    {["happy", "calm", "angry", "sad", "energetic", "neutral", "stressed", "excited", "lonely", "relaxed", "romantic", "focus"].map((m) => (
                                         <button
                                             key={m}
                                             onClick={() => handleDetectMood(m)}
@@ -262,7 +262,7 @@ function Dashboard() {
                         {detectionMode === "text" && (
                             <div className="animate-in fade-in slide-in-from-left-5 duration-500">
                                 <h2 className="text-4xl font-bold mb-4 cursive text-white/90">Describe your state</h2>
-                                <p className="text-gray-400 mb-8 max-w-xl">Tell us about your day, your thoughts, or your current environment. Our LLM will decipher your emotional resonance.</p>
+                                <p className="text-gray-400 mb-8 max-w-xl">Tell us about your day, your thoughts, or your current environment. Melody will decipher your emotional resonance.</p>
                                 <textarea
                                     value={userText}
                                     onChange={(e) => setUserText(e.target.value)}
@@ -347,21 +347,51 @@ function Dashboard() {
                     {songs.length > 0 && (
                         <section className="animate-in fade-in slide-in-from-bottom-5 duration-700">
                             <h3 className="text-2xl font-bold mb-6 text-cyan-400 uppercase tracking-widest text-sm">Synchronized Library</h3>
-                            <div className="grid sm:grid-cols-2 gap-6">
-                                {songs.map((song) => (
-                                    <div key={song._id} className="bg-white/5 p-6 rounded-3xl border border-white/5 hover:border-cyan-400/30 transition-all group">
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div>
-                                                <h3 className="font-bold text-xl">{song.title}</h3>
-                                                <p className="text-gray-400 text-sm">{song.artist}</p>
-                                            </div>
-                                            <span className="text-[10px] text-cyan-400 border border-cyan-400/20 px-2 py-1 rounded-md uppercase">{song.genre}</span>
-                                        </div>
-                                        {song.audioUrl && (
-                                            <audio controls className="w-full h-8 opacity-60 group-hover:opacity-100 transition-opacity">
-                                                <source src={`${BASE_URL}${song.audioUrl}`} type="audio/mpeg" />
-                                            </audio>
+                            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                {songs.map((song, index) => (
+                                    <div key={song.title + song.artist + index} className="bg-white/5 p-5 rounded-3xl border border-white/5 hover:border-cyan-400/30 transition-all group flex gap-4 items-center">
+                                        {song.coverImage && (
+                                            <img
+                                                src={song.coverImage}
+                                                alt={song.album}
+                                                className="w-14 h-14 rounded-xl object-cover shadow-md group-hover:scale-105 transition-transform duration-300 shrink-0"
+                                            />
                                         )}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex justify-between items-start mb-0.5">
+                                                <h3 className="font-bold text-base truncate pr-2 text-white" title={song.title}>{song.title}</h3>
+                                                {song.duration && (
+                                                    <span className="text-[10px] text-gray-500 shrink-0 font-mono">
+                                                        {Math.floor(song.duration / 60)}:{(song.duration % 60).toString().padStart(2, '0')}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-cyan-400 text-xs mb-0.5 truncate">{song.artist}</p>
+                                            <p className="text-gray-400 text-[10px] truncate mb-3">Album: {song.album}</p>
+
+                                            <div className="flex gap-2 items-center">
+                                                {song.previewUrl && (
+                                                    <a
+                                                        href={song.previewUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-[10px] bg-white/10 text-white px-2.5 py-1 rounded-full hover:bg-cyan-400 hover:text-black transition-colors"
+                                                    >
+                                                        Preview
+                                                    </a>
+                                                )}
+                                                {song.deezerUrl && (
+                                                    <a
+                                                        href={song.deezerUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-[10px] bg-cyan-400 text-black font-bold px-3 py-1 rounded-full hover:bg-white hover:text-black transition-colors"
+                                                    >
+                                                        View in Apple Music
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
                                 ))}
                             </div>

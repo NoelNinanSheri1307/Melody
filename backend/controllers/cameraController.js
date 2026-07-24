@@ -1,5 +1,5 @@
 const { detectEmotionFromML } = require("../services/mlService");
-const Song = require("../models/Song");
+const { getRecommendations } = require("../services/recommendationService");
 const MoodSession = require("../models/MoodSession");
 
 const detectCameraMood = async (req, res) => {
@@ -10,13 +10,14 @@ const detectCameraMood = async (req, res) => {
 
     const emotion = await detectEmotionFromML(image);
 
-    const songs = await Song.find({ mood: emotion });
+    // Fetch dynamic songs from Deezer matching the emotion
+    const songs = await getRecommendations(emotion);
 
     // save history
     const session = await MoodSession.create({
       user: req.user._id,
       mood: emotion,
-      songs: songs.map(s => s._id),
+      songs: songs,
       modelVersion: "camera_v1"
     });
 

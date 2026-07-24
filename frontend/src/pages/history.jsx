@@ -7,6 +7,9 @@ function History() {
     const [sessions, setSessions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [idToDelete, setIdToDelete] = useState(null);
+    const [expandedSessions, setExpandedSessions] = useState({});
+    const [sessionSongs, setSessionSongs] = useState({});
+    const [songsLoading, setSongsLoading] = useState({});
     const navigate = useNavigate();
     const BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api").replace("/api", "");
 
@@ -23,6 +26,24 @@ function History() {
         };
         fetchHistory();
     }, []);
+
+    const toggleSessionSongs = async (sessionId) => {
+        const isCurrentlyExpanded = expandedSessions[sessionId];
+        
+        if (!isCurrentlyExpanded && !sessionSongs[sessionId]) {
+            setSongsLoading(prev => ({ ...prev, [sessionId]: true }));
+            try {
+                const { data } = await api.get(`/mood/history/${sessionId}/songs`);
+                setSessionSongs(prev => ({ ...prev, [sessionId]: data }));
+            } catch (error) {
+                console.error("Failed to load songs for session:", error);
+            } finally {
+                setSongsLoading(prev => ({ ...prev, [sessionId]: false }));
+            }
+        }
+        
+        setExpandedSessions(prev => ({ ...prev, [sessionId]: !isCurrentlyExpanded }));
+    };
 
     const handleDelete = (id) => {
         setIdToDelete(id);
@@ -129,30 +150,94 @@ function History() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {session.songs.map((song) => (
-                                        <div
-                                            key={song._id}
-                                            className="bg-black/40 p-5 rounded-2xl border border-white/5 hover:border-cyan-400/20 transition-all flex flex-col justify-between"
-                                        >
-                                            <div>
-                                                <h3 className="font-bold text-lg mb-1 group-hover:text-cyan-400 transition-colors truncate">{song.title}</h3>
-                                                <p className="text-xs text-gray-400 mb-3 truncate">{song.artist}</p>
-                                            </div>
-                                            <div className="flex flex-col gap-3">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-6 h-[1px] bg-cyan-400/30"></div>
-                                                    <span className="text-[9px] uppercase text-cyan-400/60 font-bold tracking-widest">{song.genre}</span>
-                                                </div>
-                                                {song.audioUrl && (
-                                                    <audio controls className="w-full h-8 opacity-40 hover:opacity-100 transition-opacity scale-90 -ml-4">
-                                                        <source src={`${BASE_URL}${song.audioUrl}`} type="audio/mpeg" />
-                                                    </audio>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
+                                <div className="mt-4 flex justify-start">
+                                    <button
+                                        onClick={() => toggleSessionSongs(session._id)}
+                                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 hover:border-cyan-400/50 hover:text-cyan-400 text-xs font-bold uppercase tracking-wider transition-all duration-300"
+                                    >
+                                        {expandedSessions[session._id] ? (
+                                            <>
+                                                <span>Hide Playlist</span>
+                                                <svg className="w-4 h-4 transform rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span>View Playlist</span>
+                                                <svg className="w-4 h-4 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </>
+                                        )}
+                                    </button>
                                 </div>
+
+                                <AnimatePresence>
+                                    {expandedSessions[session._id] && (
+                                        <motion.div
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: "auto", opacity: 1 }}
+                                            exit={{ height: 0, opacity: 0 }}
+                                            className="overflow-hidden mt-6"
+                                        >
+                                            {songsLoading[session._id] ? (
+                                                <div className="flex items-center gap-3 py-6 justify-center text-cyan-400 text-xs font-mono uppercase">
+                                                    <div className="w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+                                                    Retrieving playlist frequencies...
+                                                </div>
+                                            ) : (
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+                                                    {(sessionSongs[session._id] || []).map((song, songIdx) => (
+                                                        <div
+                                                            key={song.title + song.artist + songIdx}
+                                                            className="bg-black/40 p-5 rounded-2xl border border-white/5 hover:border-cyan-400/20 transition-all flex flex-col justify-between"
+                                                        >
+                                                            <div className="flex gap-4 items-center mb-3">
+                                                                {song.coverImage && (
+                                                                    <img 
+                                                                        src={song.coverImage} 
+                                                                        alt={song.album} 
+                                                                        className="w-12 h-12 rounded-lg object-cover shrink-0"
+                                                                    />
+                                                                )}
+                                                                <div className="min-w-0 flex-1">
+                                                                    <h3 className="font-bold text-sm mb-0.5 truncate text-white" title={song.title}>{song.title}</h3>
+                                                                    <p className="text-xs text-cyan-400 truncate">{song.artist}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex flex-col gap-2">
+                                                                <p className="text-[10px] text-gray-500 truncate">Album: {song.album}</p>
+                                                                <div className="flex gap-3 mt-1">
+                                                                    {song.previewUrl && (
+                                                                        <a 
+                                                                            href={song.previewUrl} 
+                                                                            target="_blank" 
+                                                                            rel="noopener noreferrer" 
+                                                                            className="text-[10px] bg-white/10 hover:bg-cyan-400 hover:text-black text-white px-2.5 py-1 rounded-full transition-colors"
+                                                                        >
+                                                                            Preview
+                                                                        </a>
+                                                                    )}
+                                                                    {song.deezerUrl && (
+                                                                        <a 
+                                                                            href={song.deezerUrl} 
+                                                                            target="_blank" 
+                                                                            rel="noopener noreferrer" 
+                                                                            className="text-[10px] bg-cyan-400 text-black font-bold px-3 py-1 rounded-full hover:bg-white hover:text-black transition-colors"
+                                                                        >
+                                                                            Apple Music
+                                                                        </a>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                             </div>
                         </div>
                     ))}

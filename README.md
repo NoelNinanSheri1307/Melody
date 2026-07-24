@@ -9,30 +9,31 @@ Mood-to-Music is a premium full-stack web application that uses Artificial Intel
 Following the architectural cleanup, the project has been simplified to run as three independent services on the host machine, removing all containerization (Docker) and orchestration (Ansible) layers:
 
 1. **Frontend (React + Vite)**: A responsive single-page application styled using Tailwind CSS and Framer Motion. It leverages WebGL (Three.js and React Three Fiber) for state-of-the-art neon instrument animations and interactive canvas particle networks.
-2. **Backend API (Node.js + Express)**: A central orchestration server that handles user registration/login, session history tracking, song playlist queries, and coordinates request routing.
+2. **Backend API (Node.js + Express)**: A central orchestration server that handles user registration/login, session history tracking, and coordinates request routing.
    - For **text-based mood analysis**, the backend directly requests sentiment classifications from the **Groq Llama 3.1 API**.
+   - For **music recommendations**, the backend requests real-time catalog tracks from the **Deezer API** and normalizes them.
 3. **Camera ML Service (Python + Flask)**: A lightweight Python microservice that utilizes **DeepFace** and **OpenCV** to decode Base64 webcam streams, detect facial expressions, and return the dominant emotion.
-4. **Database (MongoDB)**: Used to store user credentials, song metadata, and history tracks of user mood sessions.
+4. **Database (MongoDB)**: Used to store user credentials and user mood history sessions.
 
 ```
-+--------------------------------------------------------+
-|                      React Frontend                    |
-|                    (Vite @ Port 5173)                  |
-+---------------------------+----------------------------+
-                            |
-                            | (HTTP Requests)
-                            v
-+--------------------------------------------------------+
-|                     Express Backend                    |
-|                   (Node.js @ Port 5000)                |
-+-------+-------------------+--------------------+-------+
-        |                   |                    |
-        | (Local DB Ops)    | (Local HTTP POST)  | (HTTPS API Call)
-        v                   v                    v
-+---------------+   +-------------------+   +------------+
-|    MongoDB    |   |     Camera ML     |   |  Groq API  |
-|  (Port 27017) |   | (Flask @ Port 5001|   | (Llama 3.1)|
-+---------------+   +-------------------+   +------------+
++-------------------------------------------------------------------------------+
+|                                React Frontend                                 |
+|                              (Vite @ Port 5173)                               |
++---------------------------------------+---------------------------------------+
+                                        |
+                                        | (HTTP Requests)
+                                        v
++-------------------------------------------------------------------------------+
+|                                Express Backend                                |
+|                             (Node.js @ Port 5000)                             |
++-------+-------------------+--------------------+-----------------------+------+
+        |                   |                    |                       |
+        | (Local DB Ops)    | (Local HTTP POST)  | (HTTPS API Call)      | (HTTPS API Call)
+        v                   v                    v                       v
++---------------+   +-------------------+   +------------+      +------------------+
+|    MongoDB    |   |     Camera ML     |   |  Groq API  |      |    Deezer API    |
+|  (Port 27017) |   | (Flask @ Port 5001|   | (Llama 3.1)|      | (Real-time Music)|
++---------------+   +-------------------+   +------------+      +------------------+
 ```
 
 ---
@@ -119,11 +120,7 @@ Please start the services in the following order:
    ```bash
    npm install
    ```
-3. Seed the initial playlist database (30 curated tracks):
-   ```bash
-   node seeder/seedSongs.js
-   ```
-4. Start the Express backend server in development mode:
+3. Start the Express backend server in development mode:
    ```bash
    npm run dev
    ```

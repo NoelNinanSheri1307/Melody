@@ -1,5 +1,5 @@
 const MoodSession = require('../models/MoodSession');
-const Song = require('../models/Song');
+const { getRecommendations } = require('../services/recommendationService');
 const Groq = require("groq-sdk");
 
 // @desc    Detect mood and recommend songs
@@ -15,15 +15,15 @@ const detectMood = async (req, res) => {
 
         const normalizedMood = mood.toLowerCase();
 
-        // Fetch songs matching the mood
-        const recommendedSongs = await Song.find({ mood: normalizedMood });
+        // Fetch dynamic songs from Deezer matching the mood
+        const recommendedSongs = await getRecommendations(normalizedMood);
 
         // Save the mood session
         const moodSession = await MoodSession.create({
             user: req.user._id,
             mood: normalizedMood,
-            songs: recommendedSongs.map((song) => song._id),
-            modelVersion: 'mock_v1',
+            songs: recommendedSongs,
+            modelVersion: 'deezer_v1',
         });
 
         res.status(201).json({
@@ -33,19 +33,42 @@ const detectMood = async (req, res) => {
         });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ message: 'Server Error' });
+        res.status(500).json({ message: 'Server Error', error: error.message });
     }
 };
-// @desc    Get mood history for logged in user
+// @desc    Get mood history for logged in user (excluding songs)
 // @route   GET /api/mood/history
 // @access  Private
 const getMoodHistory = async (req, res) => {
     try {
         const sessions = await MoodSession.find({ user: req.user._id })
-            .populate('songs')
+            .select('-songs')
             .sort({ createdAt: -1 });
  
         res.status(200).json(sessions);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Get songs for a specific mood session (on demand)
+// @route   GET /api/mood/history/:id/songs
+// @access  Private
+const getSessionSongs = async (req, res) => {
+    try {
+        const session = await MoodSession.findById(req.params.id);
+
+        if (!session) {
+            return res.status(404).json({ message: 'Session not found' });
+        }
+
+        // Check user ownership
+        if (session.user.toString() !== req.user._id.toString()) {
+            return res.status(401).json({ message: 'User not authorized' });
+        }
+
+        res.status(200).json(session.songs || []);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server Error' });
@@ -120,7 +143,7 @@ const aiAnalysis = async (req, res) => {
         }
 
     } 
-    catch (error){
+    catch (error) {
         console.error("Groq AI Analysis failed:", error.message);
         return res.status(500).json({ 
             message: "AI Analysis failed", 
@@ -129,12 +152,12 @@ const aiAnalysis = async (req, res) => {
     }
 
     try {
-        const recommendedSongs = await Song.find({ mood: detectedMood });
+        const recommendedSongs = await getRecommendations(detectedMood);
 
         const moodSession = await MoodSession.create({
             user: req.user._id,
             mood: detectedMood,
-            songs: recommendedSongs.map(song => song._id),
+            songs: recommendedSongs,
             modelVersion,
         });
 
@@ -145,7 +168,7 @@ const aiAnalysis = async (req, res) => {
         });
 
     } 
-    catch (dbError){
+    catch (dbError) {
         console.error("Database Error:", dbError.message);
         return res.status(500).json({ message: "Database Error", error: dbError.message });
     }
@@ -155,6 +178,7 @@ const aiAnalysis = async (req, res) => {
 module.exports = {
     detectMood,
     getMoodHistory,
+    getSessionSongs,
     deleteMoodSession,
     aiAnalysis,
 };

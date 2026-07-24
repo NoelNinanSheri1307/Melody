@@ -1,6 +1,6 @@
 const axios = require("axios")
 
-// Map ML emotions to our 6 system moods
+// Map ML emotions to our system moods
 const mapEmotion = (emotion) => {
 
   const mapping = {
@@ -9,9 +9,9 @@ const mapEmotion = (emotion) => {
     angry: "angry",
     neutral: "neutral",
 
-    surprise: "energetic",
-    fear: "calm",
-    disgust: "neutral"
+    surprise: "excited",
+    fear: "stressed",
+    disgust: "angry"
   }
 
   return mapping[emotion] || "neutral"
