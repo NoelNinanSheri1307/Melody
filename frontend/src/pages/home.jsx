@@ -1,8 +1,11 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import noelPic from "../assets/noel.jpg";
 
 export default function Home() {
     const navigate = useNavigate();
+    const [showCreatorModal, setShowCreatorModal] = useState(false);
 
     return (
         <div className="min-h-screen text-white selection:bg-cyan-500/30">
@@ -14,7 +17,13 @@ export default function Home() {
                     </svg>
                     <span className="text-white tracking-[0.2em] text-sm font-bold opacity-80">MELODY</span>
                 </div>
-                <div className="flex gap-6">
+                <div className="flex gap-6 items-center">
+                    <button
+                        onClick={() => setShowCreatorModal(true)}
+                        className="px-5 py-2 rounded-full border border-cyan-400/40 bg-cyan-400/5 text-cyan-400 hover:bg-cyan-400 hover:text-black transition-all duration-300 font-bold text-xs tracking-widest shadow-lg shrink-0"
+                    >
+                        About Creator
+                    </button>
                     <button
                         onClick={() => navigate("/login")}
                         className="px-6 py-2 rounded-full border border-white/20 hover:border-cyan-400 hover:text-cyan-400 transition-all duration-300 font-medium text-white shadow-lg cyan-aura"
@@ -27,7 +36,6 @@ export default function Home() {
                     >
                         Register
                     </button>
-
                 </div>
             </nav>
 
@@ -44,8 +52,6 @@ export default function Home() {
                         <span className="cursive gradient-text block translate-y-[-10px] pb-6 px-4">emotions</span>
                     </h1>
                 </motion.div>
-
-
 
                 <motion.p
                     initial={{ opacity: 0 }}
@@ -76,10 +82,8 @@ export default function Home() {
                 </div>
             </section>
 
-
             {/* Content Sections */}
             <div className="max-w-5xl mx-auto px-6 py-24 space-y-40">
-
                 {/* Platform Overview Header */}
                 <section className="border-l-4 border-cyan-400 pl-8">
                     <h3 className="text-cyan-400 font-mono text-sm mb-2 font-bold tracking-widest uppercase">Platform Capabilities</h3>
@@ -189,7 +193,6 @@ export default function Home() {
                                 </li>
                             ))}
                         </ul>
-
                     </div>
                 </section>
 
@@ -200,7 +203,7 @@ export default function Home() {
                             <h4 className="text-2xl font-bold mb-8 uppercase tracking-[0.2em] text-white border-b-2 border-cyan-400 w-fit">Vision</h4>
                             <p className="text-gray-400 text-xl max-w-2xl leading-relaxed italic">
                                 Melody is designed as a companion to your emotional space. By understanding
-                                human sentiment through state-of-the-art artificial intelligence models, we deliver 
+                                human sentiment through state-of-the-art artificial intelligence models, we deliver
                                 a seamless auditory experience that nurtures and prioritizes your daily mental well-being.
                             </p>
                         </div>
@@ -214,6 +217,65 @@ export default function Home() {
                     </div>
                 </footer>
             </div>
+
+            {/* Custom Creator Dialog Modal */}
+            <AnimatePresence>
+                {showCreatorModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 text-center">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setShowCreatorModal(false)}
+                            className="absolute inset-0 bg-black/80 backdrop-blur-2xl"
+                        />
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                            className="relative w-full max-w-3xl bg-[#0a0f1a] border border-white/10 rounded-[2.5rem] p-8 shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden text-left"
+                        >
+                            <button
+                                onClick={() => setShowCreatorModal(false)}
+                                className="absolute top-6 right-6 text-gray-500 hover:text-white transition-colors p-2 text-xl"
+                                title="Close Modal"
+                            >
+                                ✕
+                            </button>
+
+                            <div className="flex flex-col md:flex-row gap-8 items-center">
+                                {/* Left Side: Photo */}
+                                <div className="w-full md:w-1/2 aspect-square md:aspect-auto md:h-80 rounded-2xl overflow-hidden shrink-0 border border-white/5 shadow-2xl">
+                                    <img
+                                        src={noelPic}
+                                        alt="Noel Ninan Sheri"
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                            // Fallback if image isn't placed yet
+                                            e.target.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=500";
+                                        }}
+                                    />
+                                </div>
+
+                                {/* Right Side: Biography / Motivation */}
+                                <div className="flex-1 space-y-4">
+                                    <div>
+                                        <span className="text-[10px] uppercase tracking-widest text-cyan-400 font-bold block mb-1">Hello There!</span>
+                                        <h3 className="text-3xl font-bold text-white font-sans">Noel Ninan Sheri</h3>
+                                    </div>
+                                    <p className="text-gray-300 leading-relaxed text-sm">
+                                        I built Melody to bridge the gap between emotional states and music discovery, creating an intelligent space for mental well-being and daily focus. I think a scaled version of this could be used in nurseries, office spaces and cafeterias to analyse the median crowd and people emotions and play background songs or themes accordingly, making a better environment for people.
+                                    </p>
+                                    <div className="pt-4 border-t border-white/5 flex gap-4">
+
+                                        <span className="text-xs text-gray-500 font-mono">Stack Melody uses: React + Express + OpenCV DeepFace + External API connections for understanding trends.</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
