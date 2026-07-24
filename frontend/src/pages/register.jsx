@@ -53,12 +53,12 @@ export default function Register() {
     return (
         <div className="min-h-screen flex">
 
-            <div className="w-1/2"></div>
+            <div className="hidden md:block md:w-1/2"></div>
 
-            <div className="w-1/2 flex items-center justify-center relative z-10">
+            <div className="w-full md:w-1/2 flex items-center justify-center relative z-10 px-6 md:px-0">
                 <form
                     onSubmit={handleSubmit}
-                    className="w-96 bg-black/60 border border-[#00ff88]/30 shadow-[0_0_50px_rgba(0,255,136,0.1)] backdrop-blur-2xl p-10 rounded-2xl"
+                    className="w-full max-w-96 bg-black/60 border border-[#00ff88]/30 shadow-[0_0_50px_rgba(0,255,136,0.1)] backdrop-blur-2xl p-8 md:p-10 rounded-2xl"
                 >
                     <h2 className="text-3xl font-bold text-[#00ff88] mb-8 tracking-tight text-center">
                         Start Journey

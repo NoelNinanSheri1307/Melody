@@ -38,13 +38,13 @@ function Login() {
         <div className="min-h-screen flex">
 
             {/* Left empty space for 3D scene */}
-            <div className="w-1/2"></div>
+            <div className="hidden md:block md:w-1/2"></div>
 
             {/* Right side form */}
-            <div className="w-1/2 flex items-center justify-center relative z-10">
+            <div className="w-full md:w-1/2 flex items-center justify-center relative z-10 px-6 md:px-0">
                 <form
                     onSubmit={handleSubmit}
-                    className="w-96 bg-black/60 border border-[#ffff00]/20 shadow-[0_0_50px_rgba(255,255,100,0.1)] backdrop-blur-2xl p-10 rounded-2xl"
+                    className="w-full max-w-96 bg-black/60 border border-[#ffff00]/20 shadow-[0_0_50px_rgba(255,255,100,0.1)] backdrop-blur-2xl p-8 md:p-10 rounded-2xl"
                 >
                     <h2 className="text-3xl font-bold text-[#ffff00] mb-8 tracking-tight text-center">
                         Welcome Back
