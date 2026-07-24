@@ -21,8 +21,9 @@ const detectEmotionFromML = async (imageBase64) => {
 
   try {
 
+    const mlBaseUrl = process.env.ML_SERVICE_URL || "http://localhost:5001";
     const response = await axios.post(
-      "http://localhost:5001/detect-emotion",
+      `${mlBaseUrl}/detect-emotion`,
       { image: imageBase64 }
     )
 

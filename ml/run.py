@@ -24,10 +24,20 @@ def detect_emotion():
     })
 
 
+@app.route("/", methods=["GET"])
+def index():
+    return jsonify({"status": "healthy"})
+
+
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ML service running"})
+    return jsonify({"status": "healthy"})
 
+
+import os
 
 if __name__ == "__main__":
-    app.run(port=5001)
+    port = int(os.environ.get("PORT", 5001))
+    # On Render/Production, bind to all interfaces; locally default to localhost
+    host = "0.0.0.0" if os.environ.get("PORT") else "127.0.0.1"
+    app.run(host=host, port=port)

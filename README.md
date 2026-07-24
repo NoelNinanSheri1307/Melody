@@ -114,28 +114,71 @@ Alternatively, set up a MongoDB Atlas cloud database cluster.
 ### Backend Configuration (`backend/.env`)
 Create a `.env` file in the `backend/` directory:
 ```env
-# Port configuration
+# Port configuration (typically set automatically in production)
 PORT=5000
 
-# MongoDB Connection String
+# MongoDB Connection String (Community Edition or Atlas URI)
 MONGO_URI=mongodb://localhost:27017/mood_to_music
 
-# JWT Authentication Secret
+# JWT Authentication Secret key
 JWT_SECRET=your_jwt_secret_key_here
 
-# Groq Cloud API Key
+# Groq Cloud API Key (for Llama 3.1 NLU engine)
 GROQ_API_KEY=gsk_your_groq_api_key_here
+
+# Flask ML Service endpoint URL (e.g. Render app URL)
+ML_SERVICE_URL=http://localhost:5001
+
+# Production frontend domain (used for secure CORS restrictions)
+FRONTEND_URL=http://localhost:5173
 ```
 
 ### Frontend Configuration (`frontend/.env`)
-Vite uses this environment variable for backend routing (optional, defaults to port `5000`):
+Vite uses these environment variables for backend routing:
 ```env
+# Primary API endpoint URL (e.g., https://your-backend.onrender.com/api)
+VITE_API_URL=http://localhost:5000/api
+
+# Fallback API endpoint URL
 VITE_API_BASE_URL=http://localhost:5000/api
 ```
 
 ---
 
-## 6. Key Features
+## 6. Production Deployment
+
+Melody is designed to be deployed as three independent services:
+
+### A. Frontend (Vercel)
+1. Link your repository to **Vercel**.
+2. Set the build command to `npm run build` and output directory to `dist`.
+3. Configure the following environment variable:
+   * `VITE_API_URL`: The URL of your deployed Backend service (e.g. `https://melody-backend.onrender.com/api`).
+
+### B. Backend (Render Web Service)
+1. Create a new **Web Service** on **Render** linked to your repository directory `/backend`.
+2. Select **Node** runtime.
+3. Configure the following environment variables:
+   * `MONGO_URI`: Your MongoDB Atlas URI.
+   * `JWT_SECRET`: A secure random secret key.
+   * `GROQ_API_KEY`: Your Groq API token.
+   * `ML_SERVICE_URL`: The URL of your deployed ML Service (e.g. `https://melody-ml.onrender.com`).
+   * `FRONTEND_URL`: Your Vercel frontend URL (e.g. `https://melody.vercel.app`) to restrict CORS access safely.
+
+### C. ML Service (Render Web Service)
+1. Create a new **Web Service** on **Render** linked to your repository directory `/ml`.
+2. Select **Python** runtime. Set the build command to `pip install -r requirements.txt` and start command to `gunicorn run:app` or `python run.py`.
+3. Set the `PORT` env var (handled automatically by Render).
+
+### D. Communication Flow
+```
+Browser ──(HTTPS/WSS)──> Frontend (Vercel) ──(API Requests)──> Backend (Render) ──(Server-to-Server JSON POSTs)──> ML Service (Render)
+```
+*Note: The browser never communicates directly with the ML microservice, keeping facial base64 frame data flows securely encapsulated inside server-to-server networks.*
+
+---
+
+## 7. Key Features
 
 1.  **Dynamic Music Synchronizer**: iTunes Search API integration fetches real-time songs corresponding to your current vibe. Cards link directly to Apple Music.
 2.  **Context-Aware Chat Analyzer**: Maintains a sliding context window of the user's latest conversation entries to map cumulative mood shifts.
@@ -148,7 +191,7 @@ VITE_API_BASE_URL=http://localhost:5000/api
 
 ---
 
-## 7. Future Improvements
+## 8. Future Improvements
 
 *   **Custom Playlist Exporting**: Direct sync capabilities to Apple Music or Spotify account playlists.
 *   **Offline Mode Caching**: Fully localized fallback logic for camera and text pipelines during server outages.
@@ -156,6 +199,6 @@ VITE_API_BASE_URL=http://localhost:5000/api
 
 ---
 
-## 8. License
+## 9. License
 
 This project is licensed under the terms of the MIT License.
